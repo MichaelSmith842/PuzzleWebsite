@@ -1,58 +1,92 @@
-import Peer, { type DataConnection } from 'peerjs'
+import mqtt, { type MqttClient } from 'mqtt'
 
 /**
- * Shared room state, synced peer-to-peer.
+ * Shared room state, synced through a public MQTT broker.
  *
  * State is a last-writer-wins map: every key holds a value plus a timestamp and
  * the id of whoever wrote it. Merging two maps is just "keep the newer entry per
- * key", so either player can play offline and everything merges when you meet
- * again. Each browser keeps its own copy in localStorage.
+ * key", so either player can play offline and everything merges later. Each
+ * browser keeps its own copy in localStorage.
  *
- * Networking uses the free PeerJS cloud broker to find each other, then WebRTC.
- * The first tab in a room claims peer id `<room>-0` and becomes the hub; others
- * claim `<room>-1..` and dial the hub, which relays between them. If the hub
- * leaves, the others rejoin and one of them takes over.
+ * Topics under `twodown-v2/<room>/`:
+ *   op                each change as it happens (live play)
+ *   state/<userId>    retained, gzipped snapshot of that user's whole map, so the
+ *                     other player gets it on their next visit even if you're offline
+ *   presence/<userId> retained "where am I" (cleared by the broker when you drop)
+ *
+ * The broker relays over a normal secure WebSocket, so this works on any network.
+ * It is a free public broker: anyone guessing the room name could read puzzle
+ * letters and first names, nothing else.
  */
 
 export type Entry = { v: unknown; t: number; by: string }
 export type User = { id: string; name: string; color: string }
 export type Presence = { route: string; data?: unknown }
-export type PeerState = User & Presence
-export type Status = 'connecting' | 'waiting' | 'connected' | 'offline'
+export type PeerState = User & Presence & { seen: number }
+export type Status = 'connecting' | 'connected' | 'offline'
 
-type Msg =
-  | { type: 'hello'; user: User; entries: Record<string, Entry>; presence: Presence }
-  | { type: 'set'; key: string; entry: Entry }
-  | { type: 'presence'; user: User; presence: Presence }
-  | { type: 'leave'; id: string }
+const BROKERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt']
+const PRESENCE_EVERY = 20_000
+const PRESENCE_STALE = 65_000
 
-const PREFIX = 'duopuzzle-v1-'
-const MAX_SLOTS = 6
+type OpMsg = { from: string; key: string; entry: Entry }
+type PresenceMsg = { user: User; presence: Presence; t: number }
 
 export class Room {
   readonly code: string
   readonly me: User
   private entries: Record<string, Entry>
   private clock = 0
-  private peer: Peer | null = null
-  private isHub = false
-  private conns = new Map<DataConnection, string | null>() // conn -> remote user id
+  private client: MqttClient
+  private base: string
   private peerStates = new Map<string, PeerState>()
   private myPresence: Presence = { route: '' }
   private listeners = new Set<() => void>()
   private saveTimer: number | undefined
-  private retryTimer: number | undefined
-  private destroyed = false
+  private snapshotTimer: number | undefined
+  private heartbeat: number | undefined
   status: Status = 'connecting'
   version = 0
 
   constructor(code: string, me: User) {
     this.code = code
     this.me = me
+    this.base = `twodown-v2/${code}`
     this.entries = loadEntries(code)
     for (const e of Object.values(this.entries)) this.clock = Math.max(this.clock, e.t)
     this.set(`users/${me.id}`, { name: me.name, color: me.color })
-    this.join(0)
+
+    const brokers = BROKERS.map((url) => {
+      const u = new URL(url)
+      return { host: u.hostname, port: Number(u.port), protocol: 'wss' as const }
+    })
+    this.client = mqtt.connect(BROKERS[0], {
+      servers: brokers,
+      clientId: `twodown-${me.id.slice(0, 8)}-${Math.random().toString(36).slice(2, 8)}`,
+      reconnectPeriod: 3000,
+      connectTimeout: 10_000,
+      keepalive: 30,
+      will: { topic: this.topic('presence', me.id), payload: '', retain: true, qos: 1 },
+    })
+    this.client.on('connect', () => {
+      this.client.subscribe(`${this.base}/#`, { qos: 1 })
+      this.setStatus('connected')
+      this.publishPresence()
+      this.publishSnapshot()
+    })
+    this.client.on('reconnect', () => this.setStatus('connecting'))
+    this.client.on('offline', () => this.setStatus('offline'))
+    this.client.on('close', () => this.status !== 'offline' && this.setStatus('connecting'))
+    this.client.on('message', (topic, payload) => this.receive(topic, payload))
+    this.heartbeat = window.setInterval(() => {
+      this.publishPresence()
+      this.changed(false) // re-evaluate stale peers
+    }, PRESENCE_EVERY)
+    document.addEventListener('visibilitychange', this.onVisibility)
+  }
+
+  private topic(kind: 'op' | 'state' | 'presence', id?: string) {
+    return id ? `${this.base}/${kind}/${id}` : `${this.base}/${kind}`
   }
 
   // ---- state ----
@@ -76,7 +110,9 @@ export class Room {
     this.clock = Math.max(Date.now(), this.clock + 1)
     const entry: Entry = { v, t: this.clock, by: this.me.id }
     this.entries[key] = entry
-    this.broadcast({ type: 'set', key, entry })
+    if (this.client?.connected) {
+      this.client.publish(this.topic('op'), JSON.stringify({ from: this.me.id, key, entry } satisfies OpMsg), { qos: 1 })
+    }
     this.changed()
   }
 
@@ -97,11 +133,58 @@ export class Room {
 
   setPresence(p: Presence) {
     this.myPresence = p
-    this.broadcast({ type: 'presence', user: this.me, presence: p })
+    this.publishPresence()
+  }
+
+  private publishPresence() {
+    if (!this.client?.connected) return
+    const msg: PresenceMsg = { user: this.me, presence: this.myPresence, t: Date.now() }
+    this.client.publish(this.topic('presence', this.me.id), JSON.stringify(msg), { retain: true, qos: 0 })
   }
 
   peers(): PeerState[] {
-    return [...this.peerStates.values()].filter((p) => p.id !== this.me.id)
+    const now = Date.now()
+    return [...this.peerStates.values()].filter((p) => p.id !== this.me.id && now - p.seen < PRESENCE_STALE)
+  }
+
+  // ---- snapshots ----
+
+  private async publishSnapshot() {
+    if (!this.client?.connected) return
+    const payload = toBase64(await gzip(JSON.stringify(this.entries)))
+    this.client.publish(this.topic('state', this.me.id), payload, { retain: true, qos: 1 })
+  }
+
+  private onVisibility = () => {
+    // phones suspend background tabs: save a snapshot on the way out, refresh presence on the way back
+    if (document.visibilityState === 'hidden') this.publishSnapshot()
+    else this.publishPresence()
+  }
+
+  // ---- incoming ----
+
+  private async receive(topic: string, payload: Uint8Array) {
+    const [kind, id] = topic.slice(this.base.length + 1).split('/')
+    try {
+      if (kind === 'op') {
+        const msg = JSON.parse(new TextDecoder().decode(payload)) as OpMsg
+        if (msg.from !== this.me.id && this.merge(msg.key, msg.entry)) this.changed()
+      } else if (kind === 'state' && id !== this.me.id && payload.length) {
+        const theirs = JSON.parse(await gunzip(fromBase64(new TextDecoder().decode(payload)))) as Record<string, Entry>
+        let any = false
+        for (const [k, e] of Object.entries(theirs)) any = this.merge(k, e) || any
+        if (any) this.changed()
+      } else if (kind === 'presence' && id !== this.me.id) {
+        if (!payload.length) this.peerStates.delete(id)
+        else {
+          const msg = JSON.parse(new TextDecoder().decode(payload)) as PresenceMsg
+          this.peerStates.set(id, { ...msg.user, ...msg.presence, seen: Math.min(msg.t, Date.now()) })
+        }
+        this.changed(false)
+      }
+    } catch {
+      /* ignore malformed messages */
+    }
   }
 
   // ---- subscription (for useSyncExternalStore) ----
@@ -113,158 +196,56 @@ export class Room {
 
   getVersion = () => this.version
 
-  private changed() {
+  private changed(dataChanged = true) {
     this.version++
     for (const fn of this.listeners) fn()
+    if (!dataChanged) return
     clearTimeout(this.saveTimer)
     this.saveTimer = window.setTimeout(() => saveEntries(this.code, this.entries), 300)
+    clearTimeout(this.snapshotTimer)
+    this.snapshotTimer = window.setTimeout(() => this.publishSnapshot(), 3000)
   }
-
-  // ---- networking ----
 
   private setStatus(s: Status) {
     if (this.status !== s) {
       this.status = s
-      this.changed()
+      this.changed(false)
     }
-  }
-
-  private join(slot: number) {
-    if (this.destroyed) return
-    this.setStatus('connecting')
-    const peer = new Peer(`${PREFIX}${this.code}-${slot}`, { debug: 0 })
-    this.peer = peer
-    peer.on('open', () => {
-      if (slot === 0) {
-        this.isHub = true
-        this.setStatus(this.conns.size ? 'connected' : 'waiting')
-      } else {
-        this.dial(peer)
-      }
-    })
-    peer.on('connection', (conn) => {
-      if (this.isHub) this.setupConn(conn)
-      else conn.close()
-    })
-    peer.on('disconnected', () => {
-      // lost the broker (not the peers); keep data channels, try to get the id back
-      if (!this.destroyed && !peer.destroyed) setTimeout(() => !peer.destroyed && peer.reconnect(), 2000)
-    })
-    peer.on('error', (err) => {
-      const type = (err as { type?: string }).type
-      if (type === 'unavailable-id' && slot + 1 < MAX_SLOTS) {
-        peer.destroy()
-        this.join(slot + 1)
-      } else if (type === 'peer-unavailable' || type === 'unavailable-id') {
-        // hub is gone (or every slot busy): start over, maybe as the new hub
-        this.restart()
-      } else if (type === 'network' || type === 'server-error' || type === 'socket-error' || type === 'socket-closed') {
-        this.setStatus('offline')
-        this.restart(5000)
-      }
-    })
-  }
-
-  private dial(peer: Peer) {
-    const conn = peer.connect(`${PREFIX}${this.code}-0`, { reliable: true })
-    this.setupConn(conn)
-  }
-
-  private restart(delay = 600 + Math.random() * 1400) {
-    clearTimeout(this.retryTimer)
-    for (const c of this.conns.keys()) c.close()
-    this.conns.clear()
-    this.peerStates.clear()
-    this.peer?.destroy()
-    this.peer = null
-    this.isHub = false
-    this.changed()
-    this.retryTimer = window.setTimeout(() => this.join(0), delay)
-  }
-
-  private setupConn(conn: DataConnection) {
-    this.conns.set(conn, null)
-    conn.on('open', () => {
-      conn.send({ type: 'hello', user: this.me, entries: this.entries, presence: this.myPresence } satisfies Msg)
-      // the hub also tells newcomers who else is already here
-      if (this.isHub) {
-        for (const p of this.peerStates.values()) {
-          conn.send({ type: 'presence', user: p, presence: { route: p.route, data: p.data } } satisfies Msg)
-        }
-      }
-      this.setStatus('connected')
-    })
-    conn.on('data', (raw) => this.receive(conn, raw as Msg))
-    conn.on('close', () => this.dropConn(conn))
-    conn.on('error', () => this.dropConn(conn))
-  }
-
-  private dropConn(conn: DataConnection) {
-    if (!this.conns.has(conn)) return
-    const uid = this.conns.get(conn)
-    this.conns.delete(conn)
-    if (uid) {
-      this.peerStates.delete(uid)
-      this.relay(conn, { type: 'leave', id: uid })
-    }
-    if (this.isHub) {
-      this.setStatus(this.conns.size ? 'connected' : 'waiting')
-    } else {
-      this.restart()
-    }
-  }
-
-  private receive(conn: DataConnection, msg: Msg) {
-    switch (msg.type) {
-      case 'hello': {
-        this.conns.set(conn, msg.user.id)
-        this.peerStates.set(msg.user.id, { ...msg.user, ...msg.presence })
-        for (const [k, e] of Object.entries(msg.entries)) {
-          if (this.merge(k, e)) this.relay(conn, { type: 'set', key: k, entry: e })
-        }
-        // send back anything they were missing or had older
-        for (const [k, e] of Object.entries(this.entries)) {
-          const theirs = msg.entries[k]
-          if (!theirs || theirs.t < e.t) conn.send({ type: 'set', key: k, entry: e } satisfies Msg)
-        }
-        this.relay(conn, { type: 'presence', user: msg.user, presence: msg.presence })
-        break
-      }
-      case 'set':
-        if (this.merge(msg.key, msg.entry)) this.relay(conn, msg)
-        break
-      case 'presence':
-        this.peerStates.set(msg.user.id, { ...msg.user, ...msg.presence })
-        this.relay(conn, msg)
-        break
-      case 'leave':
-        this.peerStates.delete(msg.id)
-        break
-    }
-    this.changed()
-  }
-
-  /** Hub forwards a message from one peer to everyone else. */
-  private relay(from: DataConnection, msg: Msg) {
-    if (!this.isHub) return
-    for (const c of this.conns.keys()) if (c !== from && c.open) c.send(msg)
-  }
-
-  private broadcast(msg: Msg) {
-    for (const c of this.conns.keys()) if (c.open) c.send(msg)
   }
 
   destroy() {
-    this.destroyed = true
-    clearTimeout(this.retryTimer)
+    clearInterval(this.heartbeat)
+    document.removeEventListener('visibilitychange', this.onVisibility)
     saveEntries(this.code, this.entries)
-    this.peer?.destroy()
+    this.client.end(true)
   }
 }
 
+async function gzip(text: string): Promise<Uint8Array> {
+  const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'))
+  return new Uint8Array(await new Response(stream).arrayBuffer())
+}
+
+async function gunzip(data: Uint8Array): Promise<string> {
+  const stream = new Blob([data as BlobPart]).stream().pipeThrough(new DecompressionStream('gzip'))
+  return new Response(stream).text()
+}
+
+function toBase64(bytes: Uint8Array) {
+  let s = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return btoa(s)
+}
+
+function fromBase64(b64: string) {
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+}
+
+const storageKey = (code: string) => `duopuzzle:room:${code}`
+
 function loadEntries(code: string): Record<string, Entry> {
   try {
-    return JSON.parse(localStorage.getItem(`duopuzzle:room:${code}`) || '{}')
+    return JSON.parse(localStorage.getItem(storageKey(code)) || '{}')
   } catch {
     return {}
   }
@@ -272,16 +253,27 @@ function loadEntries(code: string): Record<string, Entry> {
 
 function saveEntries(code: string, entries: Record<string, Entry>) {
   try {
-    localStorage.setItem(`duopuzzle:room:${code}`, JSON.stringify(entries))
+    localStorage.setItem(storageKey(code), JSON.stringify(entries))
   } catch {
-    /* storage full or blocked; the partner still has a copy */
+    /* storage full or blocked; the broker snapshot still has a copy */
   }
 }
 
-export function newRoomCode() {
-  const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789'
-  let s = ''
-  const bytes = crypto.getRandomValues(new Uint8Array(8))
-  for (const b of bytes) s += alphabet[b % alphabet.length]
-  return s
+/** Fold progress saved under older room codes into `code`, so nothing is lost. */
+export function migrateOldRooms(code: string) {
+  try {
+    const into = loadEntries(code)
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)!
+      if (!k.startsWith('duopuzzle:room:') || k === storageKey(code)) continue
+      const old = JSON.parse(localStorage.getItem(k) || '{}') as Record<string, Entry>
+      for (const [key, e] of Object.entries(old)) {
+        const cur = into[key]
+        if (!cur || cur.t < e.t) into[key] = e
+      }
+    }
+    saveEntries(code, into)
+  } catch {
+    /* best effort */
+  }
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Room, newRoomCode, type User } from './sync'
+import { Room, migrateOldRooms, type User } from './sync'
 import { RoomContext, initials, useHashRoute, useRoom } from './room'
 import Home, { routeLabel } from './Home'
 import Crossword from './games/Crossword'
@@ -9,7 +9,10 @@ import Strands from './games/Strands'
 export const COLORS = ['#e8664f', '#3d7be0', '#2f9e6b', '#8a5cd6', '#d49a1f', '#d6529a']
 
 const ME_KEY = 'duopuzzle:me'
-const ROOM_KEY = 'duopuzzle:room'
+// Everyone who opens the site shares this one room: it's just the two of us.
+// Local development gets its own room so test players never show up for real.
+const ROOM = import.meta.env.DEV ? 'dev-0b578c6af45d6a75' : 'us-0b578c6af45d6a75'
+migrateOldRooms(ROOM)
 
 function loadMe(): User | null {
   try {
@@ -19,26 +22,9 @@ function loadMe(): User | null {
   }
 }
 
-/** Room code from an invite link (?room=...) wins over the remembered one. */
-function pickRoomCode(): string {
-  const params = new URLSearchParams(location.search)
-  const fromLink = params.get('room')?.toLowerCase().replace(/[^a-z0-9]/g, '')
-  if (fromLink) {
-    localStorage.setItem(ROOM_KEY, fromLink)
-    history.replaceState(null, '', location.pathname + location.hash)
-    return fromLink
-  }
-  const saved = localStorage.getItem(ROOM_KEY)
-  if (saved) return saved
-  const code = newRoomCode()
-  localStorage.setItem(ROOM_KEY, code)
-  return code
-}
-
 export default function App() {
   const [me, setMe] = useState<User | null>(loadMe)
-  const [code, setCode] = useState(pickRoomCode)
-  const room = useMemo(() => (me ? new Room(code, me) : null), [code, me])
+  const room = useMemo(() => (me ? new Room(ROOM, me) : null), [me])
   useEffect(() => () => room?.destroy(), [room])
 
   if (!me || !room) {
@@ -55,10 +41,6 @@ export default function App() {
   return (
     <RoomContext.Provider value={room}>
       <Shell
-        onSwitchRoom={(c) => {
-          localStorage.setItem(ROOM_KEY, c)
-          setCode(c)
-        }}
         onEditMe={(u) => {
           localStorage.setItem(ME_KEY, JSON.stringify(u))
           setMe(u)
@@ -68,7 +50,7 @@ export default function App() {
   )
 }
 
-function Shell({ onSwitchRoom, onEditMe }: { onSwitchRoom: (c: string) => void; onEditMe: (u: User) => void }) {
+function Shell({ onEditMe }: { onEditMe: (u: User) => void }) {
   const room = useRoom()
   const route = useHashRoute()
   const [game, id] = route.split('/')
@@ -82,7 +64,7 @@ function Shell({ onSwitchRoom, onEditMe }: { onSwitchRoom: (c: string) => void; 
   if (game === 'crossword' && id) page = <Crossword id={id} key={route} />
   else if (game === 'wordle' && id) page = <Wordle id={id} key={route} />
   else if (game === 'strands' && id) page = <Strands id={id} key={route} />
-  else page = <Home onSwitchRoom={onSwitchRoom} onEditMe={onEditMe} />
+  else page = <Home onEditMe={onEditMe} />
 
   return (
     <div className="app">
@@ -118,7 +100,7 @@ function PartnerBar({ route }: { route: string }) {
           <Avatar key={p.id} name={p.name} color={p.color} title={`${p.name} is online`} />
         ))}
       </span>
-      <span className={`status status-${room.status}`} title={statusText(room.status, peers.length)}>
+      <span className={`status status-${peers.length ? 'together' : room.status}`} title={statusText(room.status, peers.length)}>
         <span className="wide-only">{statusText(room.status, peers.length)}</span>
       </span>
     </div>
@@ -129,7 +111,7 @@ export function statusText(status: Room['status'], peerCount: number) {
   if (peerCount > 0) return 'Together'
   if (status === 'connecting') return 'Connecting…'
   if (status === 'offline') return 'Offline'
-  return 'Solo'
+  return 'Online'
 }
 
 export function Avatar({ name, color, title }: { name: string; color: string; title?: string }) {

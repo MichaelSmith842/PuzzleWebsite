@@ -27,9 +27,8 @@ function PartnerDots({ route }: { route: string }) {
   )
 }
 
-export default function Home({ onSwitchRoom, onEditMe }: { onSwitchRoom: (c: string) => void; onEditMe: (u: User) => void }) {
+export default function Home({ onEditMe }: { onEditMe: (u: User) => void }) {
   const room = useRoom()
-  const peers = room.peers()
   const today = todayId()
   const freeGames = room
     .scan('wd/games/')
@@ -40,7 +39,7 @@ export default function Home({ onSwitchRoom, onEditMe }: { onSwitchRoom: (c: str
 
   return (
     <div className="home">
-      <InviteCard peerCount={peers.length} onSwitchRoom={onSwitchRoom} onEditMe={onEditMe} />
+      <WelcomeCard onEditMe={onEditMe} />
 
       {CROSSWORD_SHELVES.map((shelf) => (
         <section className="shelf" key={shelf.level}>
@@ -144,85 +143,56 @@ function MiniGrid({ grid }: { grid: string[] }) {
   )
 }
 
-function InviteCard({ peerCount, onSwitchRoom, onEditMe }: { peerCount: number; onSwitchRoom: (c: string) => void; onEditMe: (u: User) => void }) {
+function WelcomeCard({ onEditMe }: { onEditMe: (u: User) => void }) {
   const room = useRoom()
-  const link = `${location.origin}${location.pathname}?room=${room.code}`
-  const [copied, setCopied] = useState(false)
-  const [panel, setPanel] = useState<'none' | 'profile' | 'room'>('none')
-  const [joinCode, setJoinCode] = useState('')
-  const peers = room.peers()
+  const [editing, setEditing] = useState(false)
+  const online = room.peers()
+  // everyone who has ever opened the site, other than me
+  const others = room
+    .scan('users/')
+    .map(([k, e]) => ({ id: k.slice('users/'.length), ...(e.v as { name: string; color: string }) }))
+    .filter((u) => u.id !== room.me.id)
+  const names = others.map((u) => u.name).join(' & ')
+  const link = `${location.origin}${location.pathname}`
 
-  const canShare = typeof navigator.share === 'function'
-  const share = async () => {
-    try {
-      await navigator.share({ title: 'Two Down', text: 'Come solve puzzles with me!', url: link })
-    } catch {
-      /* share sheet dismissed */
-    }
-  }
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(link)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      /* clipboard blocked: the link is selectable below */
-    }
+  let line
+  if (online.length) {
+    const p = online[0]
+    line = (
+      <>
+        {online.map((o) => o.name).join(' & ')} {online.length > 1 ? 'are' : 'is'} here
+        {p.route ? (
+          <>
+            {' '}on <a href={`#/${p.route}`}>{routeLabel(p.route)}</a>
+          </>
+        ) : null}
+        .
+      </>
+    )
+  } else if (others.length) {
+    line = <>Progress with {names} syncs automatically, even when you're not on at the same time.</>
+  } else {
+    line = <>Send your partner this site ({link}). Once they open it, you'll share every puzzle.</>
   }
 
   return (
     <section className="card invite">
-      <div className="invite-main">
-        <div>
-          <h1>Hi {room.me.name}!</h1>
-          {peerCount ? (
-            <p className="lede">{peers.map((p) => p.name).join(' & ')} is here with you. Pick a puzzle, or tap their name up top to join them.</p>
-          ) : (
-            <p className="lede">Send your partner the invite link. Progress syncs whenever you're both online.</p>
-          )}
-        </div>
-        {!peerCount && (
-          <div className="invite-link">
-            <input readOnly value={link} onFocus={(e) => e.target.select()} aria-label="Invite link" />
-            {canShare && (
-              <button className="btn primary" onClick={share}>
-                Send invite
-              </button>
-            )}
-            <button className={`btn ${canShare ? '' : 'primary'}`} onClick={copy}>
-              {copied ? 'Copied!' : 'Copy link'}
-            </button>
-          </div>
-        )}
+      <div>
+        <h1>Hi {room.me.name}!</h1>
+        <p className="lede">{line}</p>
       </div>
       <div className="invite-actions">
-        <button className="link" onClick={() => setPanel(panel === 'profile' ? 'none' : 'profile')}>Change name or color</button>
-        <button className="link" onClick={() => setPanel(panel === 'room' ? 'none' : 'room')}>Join a different room</button>
+        <button className="link" onClick={() => setEditing(!editing)}>Change name or color</button>
       </div>
-      {panel === 'profile' && (
+      {editing && (
         <ProfileForm
           initial={room.me}
           cta="Save"
           onSave={(u) => {
-            setPanel('none')
+            setEditing(false)
             onEditMe(u)
           }}
         />
-      )}
-      {panel === 'room' && (
-        <form
-          className="join-form"
-          onSubmit={(e) => {
-            e.preventDefault()
-            const m = joinCode.match(/room=([a-z0-9]+)/i)
-            const code = (m ? m[1] : joinCode).toLowerCase().replace(/[^a-z0-9]/g, '')
-            if (code) onSwitchRoom(code)
-          }}
-        >
-          <input value={joinCode} onChange={(e) => setJoinCode(e.target.value)} placeholder="Paste an invite link or room code" />
-          <button className="btn">Join</button>
-          <span className="muted small">Current room: {room.code}</span>
-        </form>
       )}
     </section>
   )

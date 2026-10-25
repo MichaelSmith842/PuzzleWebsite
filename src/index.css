@@ -76,8 +76,8 @@ h2 { font-size: 1.25rem; }
 }
 .status { font-size: 0.8rem; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
 .status::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-.status-connected::before { background: var(--good); }
-.status-waiting::before { background: var(--present); }
+.status-together::before { background: var(--good); }
+.status-connected::before { background: var(--present); }
 .status-offline::before { background: var(--bad); }
 .follow {
   font-size: 0.85rem; text-decoration: none; background: var(--paper); border: 1px solid var(--line);
