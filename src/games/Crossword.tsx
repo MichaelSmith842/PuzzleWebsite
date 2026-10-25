@@ -231,7 +231,7 @@ function CrosswordGame({ puzzle }: { puzzle: CrosswordData }) {
             onNext={() => jumpSlot(1)}
             onToggle={() => setCur({ ...cur, dir: cur.dir === 'across' ? 'down' : 'across' })}
           />
-          <div className="xw-grid" style={{ gridTemplateColumns: `repeat(${n}, 1fr)` }}>
+          <div className="xw-grid" style={{ gridTemplateColumns: `repeat(${n}, 1fr)`, '--n': n } as React.CSSProperties}>
             {puzzle.grid.flatMap((row, r) =>
               [...row].map((ch, c) => {
                 if (ch === '#') return <div key={`${r}-${c}`} className="xw-cell black" />

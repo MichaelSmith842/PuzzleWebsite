@@ -5,7 +5,7 @@ Crosswords, Wordle and Strands for two, solved together in real time.
 - **Made for phones**: each game fits on one screen with an on-screen keyboard, the invite button opens your share sheet, and "Add to Home Screen" makes it open full-screen like an app.
 - **Live co-op**: open the same puzzle and you see each other's letters, cursor and selections as they happen. Each player's letters show in their own ink color.
 - **No server, no accounts**: players find each other through the free [PeerJS](https://peerjs.com) broker, then talk directly over WebRTC. Progress is saved in each browser and merges whenever you're both online.
-- **Games**: 10 mini crosswords, a shared daily Wordle (plus unlimited free play), and 7 Strands boards.
+- **Games**: 35 crosswords (10 minis, 15 medium 7×7, 5 hard 9×9, and 5 "Just for us" puzzles built from law, books and code), a shared daily Wordle (plus unlimited free play), and 7 Strands boards.
 
 ## Run locally
 
@@ -24,7 +24,7 @@ Open the site, enter your name, and send the invite link (it contains your room 
 
 ## Adding puzzles
 
-- **Crosswords**: `scripts/gen_crosswords.py` finds 5×5 fills from the word lists in `scripts/words.py`; add the grid and clues to `src/data/crosswords.ts`.
+- **Crosswords**: minis come from `scripts/gen_crosswords.py`; bigger grids from `scripts/gen_big_crosswords.py` (needs `pip install wordfreq`; `--theme law,books,code` biases toward our fields). Add grids and clues to `src/data/crosswords.ts` (minis) or `src/data/crosswords-more.json`, then run `python3 scripts/check_crosswords.py` to confirm every answer has a clue.
 - **Strands**: add a theme to `PUZZLES` in `scripts/gen_strands.py` (spangram + words must total 48 letters), then run `python3 scripts/gen_strands.py > src/data/strands.json`.
 - **Wordle**: answers come from `FIVE` in `scripts/words.py`; regenerate with `python3 scripts/gen_words.py`.
 

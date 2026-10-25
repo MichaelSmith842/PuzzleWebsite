@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CROSSWORDS } from './data/crosswords'
+import { CROSSWORDS, type CrosswordData, type Level } from './data/crosswords'
 import { crosswordProgress } from './games/Crossword'
 import { answerFor, todayId, wordleStatus, wordleTitle } from './games/Wordle'
 import { STRANDS, strandsProgress } from './games/Strands'
@@ -42,25 +42,19 @@ export default function Home({ onSwitchRoom, onEditMe }: { onSwitchRoom: (c: str
     <div className="home">
       <InviteCard peerCount={peers.length} onSwitchRoom={onSwitchRoom} onEditMe={onEditMe} />
 
-      <section className="shelf">
-        <div className="shelf-head">
-          <h2>Mini crosswords</h2>
-          <p>Fill the grid together. Your letters show in your ink color.</p>
-        </div>
-        <div className="cards">
-          {CROSSWORDS.map((p) => {
-            const pr = crosswordProgress(room, p)
-            return (
-              <a key={p.id} href={`#/crossword/${p.id}`} className={`pcard ${pr.done ? 'done' : ''}`}>
-                <MiniGrid grid={p.grid} />
-                <span className="pcard-title">{p.title}</span>
-                <span className="pcard-sub">{pr.done ? 'Solved ✓' : pr.filled ? `${pr.filled}/${pr.total} squares` : '5×5'}</span>
-                <PartnerDots route={`crossword/${p.id}`} />
-              </a>
-            )
-          })}
-        </div>
-      </section>
+      {CROSSWORD_SHELVES.map((shelf) => (
+        <section className="shelf" key={shelf.level}>
+          <div className="shelf-head">
+            <h2>{shelf.title}</h2>
+            <p>{shelf.blurb}</p>
+          </div>
+          <div className="cards">
+            {CROSSWORDS.filter((p) => p.level === shelf.level).map((p) => (
+              <CrosswordCard key={p.id} puzzle={p} />
+            ))}
+          </div>
+        </section>
+      ))}
 
       <section className="shelf">
         <div className="shelf-head">
@@ -100,6 +94,27 @@ export default function Home({ onSwitchRoom, onEditMe }: { onSwitchRoom: (c: str
         </div>
       </section>
     </div>
+  )
+}
+
+const CROSSWORD_SHELVES: { level: Level; title: string; blurb: string }[] = [
+  { level: 'ours', title: 'Just for us', blurb: 'Law, books and code: a little of each of our worlds.' },
+  { level: 'mini', title: 'Mini crosswords', blurb: 'Quick 5×5s. Your letters show in your ink color.' },
+  { level: 'medium', title: 'Medium crosswords', blurb: '7×7 grids with trickier clues.' },
+  { level: 'hard', title: 'Hard crosswords', blurb: '9×9 grids with misdirection. Bring coffee.' },
+]
+
+function CrosswordCard({ puzzle: p }: { puzzle: CrosswordData }) {
+  const room = useRoom()
+  const pr = crosswordProgress(room, p)
+  const n = p.grid.length
+  return (
+    <a href={`#/crossword/${p.id}`} className={`pcard ${pr.done ? 'done' : ''}`}>
+      <MiniGrid grid={p.grid} />
+      <span className="pcard-title">{p.title}</span>
+      <span className="pcard-sub">{pr.done ? 'Solved ✓' : pr.filled ? `${pr.filled}/${pr.total} squares` : `${n}×${n}`}</span>
+      <PartnerDots route={`crossword/${p.id}`} />
+    </a>
   )
 }
 

@@ -1,14 +1,22 @@
-// Mini crosswords. Grids were filled by scripts/gen_crosswords.py and clued by hand.
+// Crosswords. Minis were filled by scripts/gen_crosswords.py, bigger grids by
+// scripts/gen_big_crosswords.py, and all were clued by hand.
 // '#' is a black square. Clues are keyed by answer; numbering is computed.
+import MORE_JSON from './crosswords-more.json'
+
+// checked by scripts/check_crosswords.py
+const MORE = MORE_JSON as unknown as Record<'medium' | 'hard' | 'ours', CrosswordData[]>
+
+export type Level = 'mini' | 'medium' | 'hard' | 'ours'
 
 export type CrosswordData = {
   id: string
   title: string
   grid: string[]
   clues: Record<string, string>
+  level?: Level
 }
 
-export const CROSSWORDS: CrosswordData[] = [
+const MINIS: CrosswordData[] = [
   {
     id: 'spa-day',
     title: 'Spa Day',
@@ -179,6 +187,13 @@ export const CROSSWORDS: CrosswordData[] = [
       GEAR: 'Bike part',
     },
   },
+]
+
+export const CROSSWORDS: CrosswordData[] = [
+  ...MINIS.map((p) => ({ ...p, level: 'mini' as const })),
+  ...MORE.medium.map((p) => ({ ...p, level: 'medium' as const })),
+  ...MORE.hard.map((p) => ({ ...p, level: 'hard' as const })),
+  ...MORE.ours.map((p) => ({ ...p, level: 'ours' as const })),
 ]
 
 export type Slot = { num: number; dir: 'across' | 'down'; cells: [number, number][]; answer: string; clue: string }
