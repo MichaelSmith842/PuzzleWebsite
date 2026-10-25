@@ -1,0 +1,14 @@
+{
+  "name": "Two Down",
+  "short_name": "Two Down",
+  "description": "Crosswords, Wordle and Strands, solved together.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6efe4",
+  "theme_color": "#f6efe4",
+  "icons": [
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CROSSWORDS, slotsFor, type CrosswordData, type Slot } from '../data/crosswords'
-import { formatTime, usePeersOn, useRoom } from '../room'
+import { usePeersOn, useRoom } from '../room'
 import type { Room } from '../sync'
 import Keyboard from '../Keyboard'
 
@@ -54,7 +54,6 @@ function CrosswordGame({ puzzle }: { puzzle: CrosswordData }) {
 
   const value = (r: number, c: number) => (room.get<string>(cellKey(puzzle.id, r, c)) ?? '')
   const done = !!room.get(`xw/${puzzle.id}/done`)
-  const start = room.get<number>(`xw/${puzzle.id}/start`)
 
   const allCells = useMemo(() => {
     const out: [number, number][] = []
@@ -71,7 +70,6 @@ function CrosswordGame({ puzzle }: { puzzle: CrosswordData }) {
 
   const write = (r: number, c: number, letter: string) => {
     if (done || room.get(`xw/${puzzle.id}/rv/${r},${c}`)) return
-    if (!start && letter) room.set(`xw/${puzzle.id}/start`, Date.now())
     room.set(cellKey(puzzle.id, r, c), letter)
     room.set(`xw/${puzzle.id}/x/${r},${c}`, false)
   }
@@ -187,7 +185,6 @@ function CrosswordGame({ puzzle }: { puzzle: CrosswordData }) {
       room.set(`xw/${puzzle.id}/rv/${r},${c}`, false)
     }
     room.set(`xw/${puzzle.id}/done`, null)
-    room.set(`xw/${puzzle.id}/start`, null)
   }
   const [confirmClear, setConfirmClear] = useState(false)
 
@@ -198,25 +195,42 @@ function CrosswordGame({ puzzle }: { puzzle: CrosswordData }) {
     return { p, d, cells: s?.cells ?? [] }
   })
 
-  const doneAt = room.get<number>(`xw/${puzzle.id}/done`)
-
   return (
     <div className="game crossword">
       <div className="game-head">
-        <a href="#/" className="back">← All puzzles</a>
+        <a href="#/" className="back">← <span className="wide-only">All puzzles</span></a>
         <h1>{puzzle.title}</h1>
-        <Timer start={start} end={doneAt ?? undefined} />
+        <Menu label="Help">
+          <span className="menu-label">Check</span>
+          <button onClick={() => check([[cur.r, cur.c]])}>Check square</button>
+          <button onClick={() => activeSlot && check(activeSlot.cells)}>Check word</button>
+          <button onClick={() => check(allCells)}>Check puzzle</button>
+          <span className="menu-label">Reveal</span>
+          <button onClick={() => reveal([[cur.r, cur.c]])}>Reveal square</button>
+          <button onClick={() => activeSlot && reveal(activeSlot.cells)}>Reveal word</button>
+          <button onClick={() => reveal(allCells)}>Reveal puzzle</button>
+          <hr />
+          <button className="danger-text" onClick={() => setConfirmClear(true)}>Clear puzzle…</button>
+        </Menu>
       </div>
 
-      {done && (
-        <div className="banner success">
-          Solved together{start && doneAt ? ` in ${formatTime(doneAt - start)}` : ''}! 🎉
+      {done && <div className="banner success">Solved together! 🎉</div>}
+      {confirmClear && (
+        <div className="banner confirm">
+          Clear this puzzle for both of you?
+          <button className="btn small danger" onClick={() => { clearAll(); setConfirmClear(false) }}>Clear</button>
+          <button className="btn small" onClick={() => setConfirmClear(false)}>Cancel</button>
         </div>
       )}
 
       <div className="xw-layout">
         <div className="xw-board">
-          <ClueBar slot={activeSlot} onPrev={() => jumpSlot(-1)} onNext={() => jumpSlot(1)} />
+          <ClueBar
+            slot={activeSlot}
+            onPrev={() => jumpSlot(-1)}
+            onNext={() => jumpSlot(1)}
+            onToggle={() => setCur({ ...cur, dir: cur.dir === 'across' ? 'down' : 'across' })}
+          />
           <div className="xw-grid" style={{ gridTemplateColumns: `repeat(${n}, 1fr)` }}>
             {puzzle.grid.flatMap((row, r) =>
               [...row].map((ch, c) => {
@@ -260,27 +274,6 @@ function CrosswordGame({ puzzle }: { puzzle: CrosswordData }) {
               }),
             )}
           </div>
-          <div className="toolbar">
-            <Menu label="Check">
-              <button onClick={() => check([[cur.r, cur.c]])}>Square</button>
-              <button onClick={() => activeSlot && check(activeSlot.cells)}>Word</button>
-              <button onClick={() => check(allCells)}>Puzzle</button>
-            </Menu>
-            <Menu label="Reveal">
-              <button onClick={() => reveal([[cur.r, cur.c]])}>Square</button>
-              <button onClick={() => activeSlot && reveal(activeSlot.cells)}>Word</button>
-              <button onClick={() => reveal(allCells)}>Puzzle</button>
-            </Menu>
-            {confirmClear ? (
-              <span className="confirm">
-                Clear for both of you?
-                <button className="btn small danger" onClick={() => { clearAll(); setConfirmClear(false) }}>Clear</button>
-                <button className="btn small" onClick={() => setConfirmClear(false)}>Cancel</button>
-              </span>
-            ) : (
-              <button className="btn small ghost" onClick={() => setConfirmClear(true)}>Clear</button>
-            )}
-          </div>
           <Keyboard className="touch-only" onKey={onKey} enterLabel="Next" />
         </div>
 
@@ -317,11 +310,11 @@ function CrosswordGame({ puzzle }: { puzzle: CrosswordData }) {
   )
 }
 
-function ClueBar({ slot, onPrev, onNext }: { slot?: Slot; onPrev: () => void; onNext: () => void }) {
+function ClueBar({ slot, onPrev, onNext, onToggle }: { slot?: Slot; onPrev: () => void; onNext: () => void; onToggle: () => void }) {
   return (
     <div className="cluebar">
       <button className="icon" onClick={onPrev} aria-label="Previous clue">‹</button>
-      <div>
+      <button className="clue-text" onClick={onToggle} aria-label="Switch across/down">
         {slot && (
           <>
             <b>
@@ -331,7 +324,7 @@ function ClueBar({ slot, onPrev, onNext }: { slot?: Slot; onPrev: () => void; on
             {slot.clue}
           </>
         )}
-      </div>
+      </button>
       <button className="icon" onClick={onNext} aria-label="Next clue">›</button>
     </div>
   )
@@ -339,8 +332,16 @@ function ClueBar({ slot, onPrev, onNext }: { slot?: Slot; onPrev: () => void; on
 
 function Menu({ label, children }: { label: string; children: React.ReactNode }) {
   const [openMenu, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  // close when tapping anywhere outside the menu
+  useEffect(() => {
+    if (!openMenu) return
+    const close = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && setOpen(false)
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [openMenu])
   return (
-    <div className="menu" onMouseLeave={() => setOpen(false)}>
+    <div className="menu" ref={ref}>
       <button className="btn small" onClick={() => setOpen(!openMenu)} aria-expanded={openMenu}>
         {label} ▾
       </button>
@@ -351,14 +352,4 @@ function Menu({ label, children }: { label: string; children: React.ReactNode })
       )}
     </div>
   )
-}
-
-export function Timer({ start, end }: { start?: number | null; end?: number }) {
-  const [, tick] = useState(0)
-  useEffect(() => {
-    if (!start || end) return
-    const t = setInterval(() => tick((x) => x + 1), 1000)
-    return () => clearInterval(t)
-  }, [start, end])
-  return <span className="timer">{start ? formatTime((end ?? Date.now()) - start) : '0:00'}</span>
 }

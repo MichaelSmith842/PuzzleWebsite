@@ -108,7 +108,8 @@ function PartnerBar({ route }: { route: string }) {
     <div className="partners">
       {elsewhere && elsewhere.route && (
         <a className="follow" href={`#/${elsewhere.route}`}>
-          {elsewhere.name} is on {routeLabel(elsewhere.route)} →
+          <span className="wide-only">{elsewhere.name} is on {routeLabel(elsewhere.route)}</span>
+          <span className="narrow-only">Join {elsewhere.name}</span> →
         </a>
       )}
       <span className="avatars">
@@ -118,7 +119,7 @@ function PartnerBar({ route }: { route: string }) {
         ))}
       </span>
       <span className={`status status-${room.status}`} title={statusText(room.status, peers.length)}>
-        {statusText(room.status, peers.length)}
+        <span className="wide-only">{statusText(room.status, peers.length)}</span>
       </span>
     </div>
   )

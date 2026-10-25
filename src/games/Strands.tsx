@@ -147,9 +147,9 @@ function StrandsGame({ puzzle }: { puzzle: StrandsData }) {
   return (
     <div className="game strands">
       <div className="game-head">
-        <a href="#/" className="back">← All puzzles</a>
+        <a href="#/" className="back">← <span className="wide-only">All puzzles</span></a>
         <h1>Strands</h1>
-        <span className="timer">{found.size}/{themeWords.length}</span>
+        <span className="count">{found.size}/{themeWords.length}</span>
       </div>
 
       <div className="st-theme">

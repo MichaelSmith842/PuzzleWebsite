@@ -48,7 +48,8 @@ body {
   padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
 }
 a { color: inherit; }
-button { font: inherit; color: inherit; }
+button { font: inherit; color: inherit; touch-action: manipulation; }
+.narrow-only { display: none; }
 h1, h2 { font-family: var(--serif); font-weight: 700; letter-spacing: -0.01em; margin: 0; }
 h1 { font-size: 1.7rem; line-height: 1.15; }
 h2 { font-size: 1.25rem; }
@@ -104,7 +105,7 @@ h2 { font-size: 1.25rem; }
 .link { background: none; border: 0; padding: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 0.9rem; }
 input {
   font: inherit; color: var(--ink); background: var(--cell); border: 1px solid var(--line);
-  border-radius: 10px; padding: 9px 12px; min-width: 0;
+  border-radius: 10px; padding: 9px 12px; min-width: 0; font-size: 16px; /* 16px stops iOS zooming on focus */
 }
 input:focus { outline: 2px solid var(--cursor); outline-offset: 1px; }
 .banner { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 10px 16px; text-align: center; margin: 12px 0; }
@@ -164,7 +165,9 @@ input:focus { outline: 2px solid var(--cursor); outline-offset: 1px; }
 .game-head h1 { font-size: 1.5rem; text-align: center; }
 .back { text-decoration: none; color: var(--muted); font-size: 0.9rem; }
 .back:hover { color: var(--ink); }
-.timer { justify-self: end; font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 600; }
+.count { justify-self: end; font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 600; }
+.game-head .menu { justify-self: end; }
+.game { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 
 /* ---------- crossword ---------- */
 .xw-layout { display: grid; grid-template-columns: minmax(0, 480px) 1fr; gap: 32px; align-items: start; }
@@ -173,6 +176,7 @@ input:focus { outline: 2px solid var(--cursor); outline-offset: 1px; }
   display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 6px;
   background: var(--word); border-radius: 10px; padding: 8px 6px; min-height: 52px; font-size: 1rem;
 }
+.clue-text { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; line-height: 1.35; }
 .icon { background: none; border: 0; font-size: 1.6rem; line-height: 1; padding: 0 8px; cursor: pointer; color: var(--muted); }
 .xw-grid {
   display: grid; gap: 0; aspect-ratio: 1; background: var(--black); border: 2px solid var(--black); border-radius: 6px; overflow: hidden;
@@ -196,15 +200,18 @@ input:focus { outline: 2px solid var(--cursor); outline-offset: 1px; }
   position: absolute; bottom: 100%; left: 50%; transform: translate(-50%, 4px); color: #fff; font-size: 10px;
   font-weight: 700; padding: 1px 6px; border-radius: 6px; white-space: nowrap; pointer-events: none; z-index: 2;
 }
-.toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.confirm { display: inline-flex; gap: 8px; align-items: center; font-size: 0.9rem; }
+.banner.confirm { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; }
 .menu { position: relative; }
 .menu-pop {
-  position: absolute; top: calc(100% + 4px); left: 0; z-index: 5; background: var(--paper); border: 1px solid var(--line);
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 20; background: var(--paper); border: 1px solid var(--line);
   border-radius: 10px; box-shadow: var(--shadow); display: grid; min-width: 120px; padding: 4px;
 }
 .menu-pop button { background: none; border: 0; text-align: left; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
 .menu-pop button:hover { background: var(--word); }
+.menu-pop button { white-space: nowrap; padding: 10px 12px; }
+.menu-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 8px 12px 2px; }
+.menu-pop hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; width: 100%; }
+.danger-text { color: var(--bad); }
 .xw-clues { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .xw-clues h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--sans); border-bottom: 1px solid var(--line); padding-bottom: 6px; }
 .xw-clues ol { list-style: none; margin: 8px 0 0; padding: 0; }
@@ -287,11 +294,55 @@ input:focus { outline: 2px solid var(--cursor); outline-offset: 1px; }
 @media (max-width: 760px) {
   .invite-main { grid-template-columns: 1fr; }
   .xw-layout { grid-template-columns: 1fr; gap: 20px; }
-  .game-head h1 { font-size: 1.25rem; }
 }
-@media (max-width: 480px) {
+
+/* Phones: each game fits on one screen, with the keyboard pinned to the bottom. */
+@media (max-width: 600px) {
+  .wide-only { display: none; }
+  .narrow-only { display: inline; }
+  .app { padding: 0 12px 12px; }
+  .topbar { padding: 8px 0; flex-wrap: nowrap; }
+  .brand { font-size: 1.1rem; gap: 8px; }
+  .brand-mark { width: 20px; height: 20px; }
+  .follow { font-size: 0.8rem; padding: 3px 10px; white-space: nowrap; }
+  .back { font-size: 1.3rem; padding: 4px 8px 4px 0; }
+  .game-head { margin: 0 0 10px; }
+  .game-head h1 { font-size: 1.15rem; }
+  .banner { margin: 0 0 10px; padding: 8px 12px; }
+
+  .home { gap: 26px; }
+  .card { padding: 16px; }
+  h1 { font-size: 1.45rem; }
+  .cards { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .invite-link { flex-wrap: wrap; }
+  .invite-link input { flex-basis: 100%; }
+  .invite-link .btn { flex: 1; justify-content: center; }
+
+  .xw-board { gap: 8px; }
+  .xw-grid { order: 1; width: min(100%, calc(100dvh - 330px)); min-width: 220px; justify-self: center; }
+  .cluebar { order: 2; min-height: 48px; padding: 6px 4px; font-size: 0.95rem; }
+  .xw-board .keyboard { order: 3; }
   .xw-clues { grid-template-columns: 1fr; }
-  .cards { grid-template-columns: repeat(2, 1fr); }
-  .invite-link { flex-direction: column; }
-  .key { height: 50px; }
+
+  .keyboard {
+    position: sticky; bottom: 0; z-index: 5; background: var(--bg);
+    padding: 6px 0 calc(6px + env(safe-area-inset-bottom)); gap: 6px;
+  }
+  .kb-row { gap: 4px; }
+  .key { height: 46px; font-size: 1rem; }
+
+  .wd-tile { width: min(15vw, calc((100dvh - 340px) / 6 - 6px), 62px); min-width: 36px; font-size: clamp(1.1rem, 5.5vw, 1.8rem); }
+  .wd-board { gap: 5px; margin-bottom: 8px; }
+  .wd-row { gap: 5px; }
+  .hint-line { font-size: 0.8rem; margin-bottom: 6px; min-height: 2em; }
+
+  .st-theme { padding: 6px; }
+  .st-theme b { font-size: 1.05rem; }
+  .st-current { height: 2em; font-size: 1.15rem; }
+  .st-grid { width: min(100%, calc((100dvh - 300px) * 0.75)); margin: 0 auto; }
+  .st-foot { margin-top: 10px; }
+}
+@media (max-width: 600px) and (max-height: 700px) {
+  .key { height: 40px; }
+  .brand { font-size: 1rem; }
 }

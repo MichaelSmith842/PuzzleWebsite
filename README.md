@@ -2,6 +2,7 @@
 
 Crosswords, Wordle and Strands for two, solved together in real time.
 
+- **Made for phones**: each game fits on one screen with an on-screen keyboard, the invite button opens your share sheet, and "Add to Home Screen" makes it open full-screen like an app.
 - **Live co-op**: open the same puzzle and you see each other's letters, cursor and selections as they happen. Each player's letters show in their own ink color.
 - **No server, no accounts**: players find each other through the free [PeerJS](https://peerjs.com) broker, then talk directly over WebRTC. Progress is saved in each browser and merges whenever you're both online.
 - **Games**: 10 mini crosswords, a shared daily Wordle (plus unlimited free play), and 7 Strands boards.

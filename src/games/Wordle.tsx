@@ -134,9 +134,9 @@ export default function Wordle({ id }: { id: string }) {
   return (
     <div className="game wordle">
       <div className="game-head">
-        <a href="#/" className="back">← All puzzles</a>
+        <a href="#/" className="back">← <span className="wide-only">All puzzles</span></a>
         <h1>{wordleTitle(id)}</h1>
-        <span className="timer">{guesses.length}/{MAX_GUESSES}</span>
+        <span className="count">{guesses.length}/{MAX_GUESSES}</span>
       </div>
 
       <div className="wd-board">
@@ -173,9 +173,9 @@ export default function Wordle({ id }: { id: string }) {
             <span className="banner inline">The word was <b>{answer}</b></span>
           )
         ) : partners.length ? (
-          <>You and {partners.map((p) => p.name).join(', ')} share one board. Either of you can type.</>
+          <>Shared with {partners.map((p) => p.name).join(', ')}. Either of you can type.</>
         ) : (
-          <>Your partner will see every letter as you type it.</>
+          <>Your partner sees every letter you type.</>
         )}
       </p>
       {over && (

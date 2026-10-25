@@ -28,9 +28,3 @@ export function useHashRoute(): string {
 export function initials(name: string) {
   return name.trim().slice(0, 1).toUpperCase() || '?'
 }
-
-export function formatTime(ms: number) {
-  const s = Math.max(0, Math.round(ms / 1000))
-  const m = Math.floor(s / 60)
-  return `${m}:${String(s % 60).padStart(2, '0')}`
-}

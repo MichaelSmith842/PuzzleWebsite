@@ -137,6 +137,14 @@ function InviteCard({ peerCount, onSwitchRoom, onEditMe }: { peerCount: number; 
   const [joinCode, setJoinCode] = useState('')
   const peers = room.peers()
 
+  const canShare = typeof navigator.share === 'function'
+  const share = async () => {
+    try {
+      await navigator.share({ title: 'Two Down', text: 'Come solve puzzles with me!', url: link })
+    } catch {
+      /* share sheet dismissed */
+    }
+  }
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(link)
@@ -153,17 +161,24 @@ function InviteCard({ peerCount, onSwitchRoom, onEditMe }: { peerCount: number; 
         <div>
           <h1>Hi {room.me.name}!</h1>
           {peerCount ? (
-            <p className="lede">{peers.map((p) => p.name).join(' & ')} is here with you. Pick a puzzle, or follow them from the top bar.</p>
+            <p className="lede">{peers.map((p) => p.name).join(' & ')} is here with you. Pick a puzzle, or tap their name up top to join them.</p>
           ) : (
-            <p className="lede">Send this link to your partner. Anyone with it joins your puzzle room, and progress syncs whenever you're both online.</p>
+            <p className="lede">Send your partner the invite link. Progress syncs whenever you're both online.</p>
           )}
         </div>
-        <div className="invite-link">
-          <input readOnly value={link} onFocus={(e) => e.target.select()} aria-label="Invite link" />
-          <button className="btn primary" onClick={copy}>
-            {copied ? 'Copied!' : 'Copy link'}
-          </button>
-        </div>
+        {!peerCount && (
+          <div className="invite-link">
+            <input readOnly value={link} onFocus={(e) => e.target.select()} aria-label="Invite link" />
+            {canShare && (
+              <button className="btn primary" onClick={share}>
+                Send invite
+              </button>
+            )}
+            <button className={`btn ${canShare ? '' : 'primary'}`} onClick={copy}>
+              {copied ? 'Copied!' : 'Copy link'}
+            </button>
+          </div>
+        )}
       </div>
       <div className="invite-actions">
         <button className="link" onClick={() => setPanel(panel === 'profile' ? 'none' : 'profile')}>Change name or color</button>
