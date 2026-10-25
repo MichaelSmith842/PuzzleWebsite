@@ -44,7 +44,11 @@ lawyer attorney defense defendant plaintiff witness evidence motive justice law 
 summons ruling rulings statute statutes precedent tribunal juris dissent opinion holding remand vacate tenure
 lease leases escrow estoppel easement merger torts treaty clause clauses consent repeal decree decrees
 mediator arbitrate hearing hearings indict indicted perjury custody felon libel slander rule rules bill fee fees
-term order party stay seal heir heirs asset assets suit suits act acts code fine void case moot""",
+term order party stay seal heir heirs asset assets suit suits act acts code fine void case moot
+plaintiff defendant precedent affidavit testimony arbitrate jurist sentence litigate contracts deposed
+injunct counselor tenancy codicil grantor grantee lessor lessee bailiff docket sidebar recess verdicts
+statutes damages juries appellate certiorari habeas corpus mens rea dicta torts estoppel lawful unlawful
+lawyers barrister solicitor notary probate escrow trustee fiduciary covenant mortgage liable libel""",
     "books": """novel novels prose poem poems plot plots page pages chapter chapters author authors reader readers
 shelf spine tome tomes epic epics saga sagas poe austen orwell bronte eliot twain wilde homer dante keats byron
 plath library book books bookmark ebook kindle memoir essay essays verse verses rhyme stanza sonnet ode odes haiku
@@ -52,7 +56,12 @@ fable fables myth myths legend genre fiction mystery romance thriller trope moti
 villain prologue epilogue preface index edition editor publish print read reads ink quill paperback hardcover
 classic gatsby hamlet emma dracula narrator poet poets poetry story stories tale tales sequel novella fantasy
 literary library prose author title titles plot cover jacket blurb draft drafts critic review reviews scene
-lit lyric lyrical bard verse folio chapter fairy lore tale pen alcott twain shelf cover moral""",
+lit lyric lyrical bard verse folio chapter fairy lore tale pen alcott twain shelf cover moral
+character narrative allegory metaphor satire tragedy comedy trilogy novelist biography dickens tolstoy
+hemingway odyssey iliad ulysses protagonist antagonist climax denouement fable parable sonnets stanzas
+couplet limerick elegy ballad dante milton chaucer bronte woolf joyce kafka camus steinbeck faulkner
+nabokov tolkien rowling gatsby austen darcy bennet ahab ishmael gothic romantic novella anthology
+manuscript memoirs footnote epigraph syntax diction imagery rhetoric""",
     "code": """code coder coders bug bugs debug array arrays loop loops stack queue api git merge commit commits branch
 python server cache linux deploy script syntax compile binary byte bytes bit bits pixel data query table hash
 node nodes tree graph lambda class object method string float integer boolean null void return error errors
@@ -63,7 +72,12 @@ terminal prompt model neural robot chip cpu gpu ram disk byte program programs s
 compiler library framework backend frontend database schema backup bitwise logic logs latency socket packet
 router widget input output inputs outputs click website web online offline app apps update upload download
 debugger keyboard monitor screen tech refactor iterate vector matrix tensor pointer variable function repo diff
-key email site link hack hacker true false tab ram dev devs ship merge spec specs port ports""",
+key email site link hack hacker true false tab ram dev devs ship merge spec specs port ports
+algorithm debugger compiler database frontend backend recursion interface protocol endpoint program
+variable function overflow semicolon boolean integer docker github stack heap queue linked pointer
+iterator closure promise callback runtime bytecode unicode ascii server servers cluster latency
+deploying deployed commits branches rebased hotfix release staging sandbox virtual cookie cookies
+session tokens encrypt hashing parser lexer syntax compile compiled kernel threads""",
 }
 
 
@@ -274,10 +288,14 @@ def main():
     ap.add_argument("--themed-slots", type=int, default=0, help="force theme words into the N longest slots")
     ap.add_argument("--blacks", default=None, help="min,max black squares")
     ap.add_argument("--patterns", default=None, help="JSON file of grid shapes to reuse instead of random ones")
+    ap.add_argument("--exclude", default="", help="comma-separated words to leave out (e.g. already used)")
     args = ap.parse_args()
     rng = random.Random(args.seed)
     themes = [t for t in args.theme.split(",") if t]
     score, theme = build_wordlist(args.min_zipf, themes)
+    for w in filter(None, args.exclude.lower().split(",")):
+        score.pop(w, None)
+        theme.discard(w)
     print(f"{len(score)} words", file=sys.stderr)
     filler = Filler(score, theme)
     n = args.size
