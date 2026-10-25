@@ -14,6 +14,9 @@
   --bad: #d4483b;
   --present: #d9a82e;
   --absent: #8f857c;
+  --key: #e4d8c7;
+  --key-absent: #6b625a;
+  --key-absent-ink: #cbc2b8;
   --shadow: 0 1px 2px rgb(60 40 20 / 0.06), 0 6px 24px rgb(60 40 20 / 0.08);
   --radius: 14px;
   --serif: 'Fraunces', Georgia, 'Times New Roman', serif;
@@ -33,6 +36,9 @@
     --word: #4a3c22;
     --cursor: #a77f22;
     --absent: #5c544c;
+    --key: #4d453e;
+    --key-absent: #110e0c;
+    --key-absent-ink: #4d453e;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 6px 24px rgb(0 0 0 / 0.25);
     color-scheme: dark;
   }
@@ -227,13 +233,13 @@ input:focus { outline: 2px solid var(--cursor); outline-offset: 1px; }
 .keyboard { display: grid; gap: 6px; user-select: none; max-width: 520px; margin: 0 auto; width: 100%; }
 .kb-row { display: flex; gap: 5px; justify-content: center; }
 .key {
-  flex: 1 1 0; max-width: 44px; height: 54px; border: 0; border-radius: 6px; background: var(--line);
+  flex: 1 1 0; max-width: 44px; height: 54px; border: 0; border-radius: 6px; background: var(--key);
   font-weight: 700; font-size: 0.95rem; cursor: pointer; touch-action: manipulation;
 }
 .key.wide { max-width: 68px; flex-grow: 1.5; font-size: 0.75rem; }
 .key.correct { background: var(--good); color: #fff; }
 .key.present { background: var(--present); color: #fff; }
-.key.absent { background: var(--absent); color: #fff; }
+.key.absent { background: var(--key-absent); color: var(--key-absent-ink); }
 .touch-only { display: none; }
 @media (pointer: coarse) { .touch-only { display: grid; } }
 
