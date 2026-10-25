@@ -196,6 +196,24 @@ export const CROSSWORDS: CrosswordData[] = [
   ...MORE.ours.map((p) => ({ ...p, level: 'ours' as const })),
 ]
 
+const LEVEL_NAMES: Record<Level, string> = { mini: 'Mini', medium: 'Medium', hard: 'Hard', ours: 'Just for us' }
+
+/** Numbered name like "Medium #3"; titles stay in the data but could give answers away. */
+export function crosswordLabel(p: CrosswordData) {
+  const n = CROSSWORDS.filter((q) => q.level === p.level).indexOf(p) + 1
+  return `${LEVEL_NAMES[p.level ?? 'mini']} #${n}`
+}
+
+/** Neutral URL slug like "medium-3" (ids are titles, which could give answers away). */
+export function crosswordSlug(p: CrosswordData) {
+  return `${p.level}-${CROSSWORDS.filter((q) => q.level === p.level).indexOf(p) + 1}`
+}
+
+/** Look a crossword up by slug, or by id for links saved before slugs existed. */
+export function findCrossword(param: string) {
+  return CROSSWORDS.find((p) => crosswordSlug(p) === param) ?? CROSSWORDS.find((p) => p.id === param)
+}
+
 export type Slot = { num: number; dir: 'across' | 'down'; cells: [number, number][]; answer: string; clue: string }
 
 export function slotsFor(p: CrosswordData) {

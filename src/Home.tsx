@@ -1,17 +1,19 @@
 import { useState } from 'react'
-import { CROSSWORDS, type CrosswordData, type Level } from './data/crosswords'
+import { CROSSWORDS, crosswordLabel, crosswordSlug, findCrossword, type CrosswordData, type Level } from './data/crosswords'
 import { crosswordProgress } from './games/Crossword'
 import { answerFor, todayId, wordleStatus, wordleTitle } from './games/Wordle'
-import { STRANDS, strandsProgress } from './games/Strands'
+import { STRANDS, findStrands, strandsLabel, strandsProgress, strandsSlug, type StrandsData } from './games/Strands'
 import { useRoom } from './room'
 import type { User } from './sync'
 import { Avatar, ProfileForm } from './App'
 
 export function routeLabel(route: string) {
   const [game, id] = route.split('/')
-  if (game === 'crossword') return `the “${CROSSWORDS.find((p) => p.id === id)?.title ?? id}” crossword`
+  const xw = findCrossword(id ?? '')
+  const st = findStrands(id ?? '')
+  if (game === 'crossword') return xw ? `crossword ${crosswordLabel(xw)}` : 'a crossword'
   if (game === 'wordle') return `Wordle (${wordleTitle(id ?? '')})`
-  if (game === 'strands') return `Strands: ${STRANDS.find((p) => p.id === id)?.clue ?? id}`
+  if (game === 'strands') return st ? strandsLabel(st) : 'Strands'
   return 'the home page'
 }
 
@@ -73,25 +75,19 @@ export default function Home({ onEditMe }: { onEditMe: (u: User) => void }) {
         </div>
       </section>
 
-      <section className="shelf">
-        <div className="shelf-head">
-          <h2>Strands</h2>
-          <p>Find the hidden theme words. Every letter gets used exactly once.</p>
-        </div>
-        <div className="cards">
-          {STRANDS.map((p) => {
-            const pr = strandsProgress(room, p)
-            return (
-              <a key={p.id} href={`#/strands/${p.id}`} className={`pcard ${pr.done ? 'done' : ''}`}>
-                <span className="st-thumb">{p.grid[0].slice(0, 4)}</span>
-                <span className="pcard-title">{p.clue}</span>
-                <span className="pcard-sub">{pr.done ? 'Solved ✓' : pr.found ? `${pr.found}/${pr.total} words` : `${pr.total} words`}</span>
-                <PartnerDots route={`strands/${p.id}`} />
-              </a>
-            )
-          })}
-        </div>
-      </section>
+      {STRANDS_SHELVES.map((shelf) => (
+        <section className="shelf" key={shelf.level}>
+          <div className="shelf-head">
+            <h2>{shelf.title}</h2>
+            <p>{shelf.blurb}</p>
+          </div>
+          <div className="cards">
+            {STRANDS.filter((p) => p.level === shelf.level).map((p) => (
+              <StrandsCard key={p.id} puzzle={p} />
+            ))}
+          </div>
+        </section>
+      ))}
     </div>
   )
 }
@@ -103,16 +99,34 @@ const CROSSWORD_SHELVES: { level: Level; title: string; blurb: string }[] = [
   { level: 'hard', title: 'Hard crosswords', blurb: '9×9 grids with misdirection. Bring coffee.' },
 ]
 
+const STRANDS_SHELVES: { level: StrandsData['level']; title: string; blurb: string }[] = [
+  { level: 'easy', title: 'Strands', blurb: 'Find the hidden theme words. Every letter gets used exactly once.' },
+  { level: 'hard', title: 'Harder Strands', blurb: 'Sneakier themes, longer words. The hint is only revealed inside.' },
+]
+
+function StrandsCard({ puzzle: p }: { puzzle: StrandsData }) {
+  const room = useRoom()
+  const pr = strandsProgress(room, p)
+  return (
+    <a href={`#/strands/${strandsSlug(p)}`} className={`pcard ${pr.done ? 'done' : ''}`}>
+      <span className="st-thumb">{p.grid[0].slice(0, 4)}</span>
+      <span className="pcard-title">#{STRANDS.filter((q) => q.level === p.level).indexOf(p) + 1}</span>
+      <span className="pcard-sub">{pr.done ? 'Solved ✓' : pr.found ? `${pr.found}/${pr.total} words` : `${pr.total} words`}</span>
+      <PartnerDots route={`strands/${strandsSlug(p)}`} />
+    </a>
+  )
+}
+
 function CrosswordCard({ puzzle: p }: { puzzle: CrosswordData }) {
   const room = useRoom()
   const pr = crosswordProgress(room, p)
   const n = p.grid.length
   return (
-    <a href={`#/crossword/${p.id}`} className={`pcard ${pr.done ? 'done' : ''}`}>
+    <a href={`#/crossword/${crosswordSlug(p)}`} className={`pcard ${pr.done ? 'done' : ''}`}>
       <MiniGrid grid={p.grid} />
-      <span className="pcard-title">{p.title}</span>
+      <span className="pcard-title">#{CROSSWORDS.filter((q) => q.level === p.level).indexOf(p) + 1}</span>
       <span className="pcard-sub">{pr.done ? 'Solved ✓' : pr.filled ? `${pr.filled}/${pr.total} squares` : `${n}×${n}`}</span>
-      <PartnerDots route={`crossword/${p.id}`} />
+      <PartnerDots route={`crossword/${crosswordSlug(p)}`} />
     </a>
   )
 }

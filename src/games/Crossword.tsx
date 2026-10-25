@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CROSSWORDS, slotsFor, type CrosswordData, type Slot } from '../data/crosswords'
+import { crosswordLabel, crosswordSlug, findCrossword, slotsFor, type CrosswordData, type Slot } from '../data/crosswords'
 import { usePeersOn, useRoom } from '../room'
 import type { Room } from '../sync'
 import Keyboard from '../Keyboard'
@@ -23,14 +23,14 @@ export function crosswordProgress(room: Room, p: CrosswordData) {
 }
 
 export default function Crossword({ id }: { id: string }) {
-  const puzzle = CROSSWORDS.find((p) => p.id === id)
+  const puzzle = findCrossword(id)
   if (!puzzle) return <p className="empty">Puzzle not found. <a href="#/">Back home</a></p>
   return <CrosswordGame puzzle={puzzle} />
 }
 
 function CrosswordGame({ puzzle }: { puzzle: CrosswordData }) {
   const room = useRoom()
-  const route = `crossword/${puzzle.id}`
+  const route = `crossword/${crosswordSlug(puzzle)}`
   const partners = usePeersOn(route)
   const n = puzzle.grid.length
   const { numbers, slots } = useMemo(() => slotsFor(puzzle), [puzzle])
@@ -199,7 +199,7 @@ function CrosswordGame({ puzzle }: { puzzle: CrosswordData }) {
     <div className="game crossword">
       <div className="game-head">
         <a href="#/" className="back">← <span className="wide-only">All puzzles</span></a>
-        <h1>{puzzle.title}</h1>
+        <h1>{crosswordLabel(puzzle)}</h1>
         <Menu label="Help">
           <span className="menu-label">Check</span>
           <button onClick={() => check([[cur.r, cur.c]])}>Check square</button>

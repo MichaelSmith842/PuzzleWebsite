@@ -5,13 +5,28 @@ import { usePeersOn, useRoom } from '../room'
 import type { Room } from '../sync'
 
 type Cell = [number, number]
-export type StrandsData = { id: string; clue: string; spangram: string; grid: string[]; words: Record<string, number[][]> }
+export type StrandsData = { id: string; clue: string; level: 'easy' | 'hard'; spangram: string; grid: string[]; words: Record<string, number[][]> }
 
 export const STRANDS = PUZZLES as unknown as StrandsData[]
 const ROWS = 8
 const COLS = 6
 const BONUS_PER_HINT = 3
 const SPANGRAM_COLOR = '#e3b23c'
+
+/** Numbered name like "Strands #2"; the theme hint is only shown inside the puzzle. */
+export function strandsLabel(p: StrandsData) {
+  const n = STRANDS.filter((q) => q.level === p.level).indexOf(p) + 1
+  return `${p.level === 'hard' ? 'Hard Strands' : 'Strands'} #${n}`
+}
+
+/** Neutral URL slug like "hard-4". */
+export function strandsSlug(p: StrandsData) {
+  return `${p.level}-${STRANDS.filter((q) => q.level === p.level).indexOf(p) + 1}`
+}
+
+export function findStrands(param: string) {
+  return STRANDS.find((p) => strandsSlug(p) === param) ?? STRANDS.find((p) => p.id === param)
+}
 
 export function strandsProgress(room: Room, p: StrandsData) {
   const total = Object.keys(p.words).length
@@ -23,14 +38,14 @@ const same = (a: number[][], b: number[][]) => a.length === b.length && a.every(
 const adjacent = (a: Cell, b: Cell) => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1])) === 1
 
 export default function Strands({ id }: { id: string }) {
-  const puzzle = STRANDS.find((p) => p.id === id)
+  const puzzle = findStrands(id)
   if (!puzzle) return <p className="empty">Puzzle not found. <a href="#/">Back home</a></p>
   return <StrandsGame puzzle={puzzle} />
 }
 
 function StrandsGame({ puzzle }: { puzzle: StrandsData }) {
   const room = useRoom()
-  const route = `strands/${puzzle.id}`
+  const route = `strands/${strandsSlug(puzzle)}`
   const partners = usePeersOn(route)
   const [path, setPath] = useState<Cell[]>([])
   const [msg, setMsg] = useState<{ text: string; tone?: 'good' | 'bad' } | null>(null)
@@ -148,7 +163,7 @@ function StrandsGame({ puzzle }: { puzzle: StrandsData }) {
     <div className="game strands">
       <div className="game-head">
         <a href="#/" className="back">← <span className="wide-only">All puzzles</span></a>
-        <h1>Strands</h1>
+        <h1>{strandsLabel(puzzle)}</h1>
         <span className="count">{found.size}/{themeWords.length}</span>
       </div>
 

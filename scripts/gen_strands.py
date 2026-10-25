@@ -8,14 +8,26 @@ import sys
 
 ROWS, COLS = 8, 6
 
+# (id, theme hint, spangram, words, level). Append new puzzles at the end: the shared
+# random seed means earlier boards keep their layout.
 PUZZLES = [
-    ("date-night", "Night on the town", "DATENIGHT", ["DINNER", "MOVIE", "PICNIC", "BOWLING", "DANCING", "STARGAZE"]),
-    ("breakfast", "Rise and shine", "BREAKFAST", ["PANCAKE", "WAFFLE", "BACON", "TOAST", "OMELET", "CEREAL", "EGGS"]),
-    ("pet-names", "What I call you", "PETNAMES", ["HONEY", "DARLING", "SWEETIE", "SUGAR", "CUTIE", "PUMPKIN", "DEAR"]),
-    ("board-games", "Game night", "BOARDGAMES", ["CHESS", "CLUE", "RISK", "TROUBLE", "MONOPOLY", "CATAN", "SORRY"]),
-    ("baking", "Something in the oven", "BAKING", ["FLOUR", "SUGAR", "BUTTER", "WHISK", "MIXER", "DOUGH", "YEAST", "MUFFIN"]),
-    ("stargazing", "Look up", "STARGAZING", ["ORION", "COMET", "GALAXY", "NEBULA", "METEOR", "PLANET", "MOON"]),
-    ("beach-trip", "Day at the shore", "BEACHTRIP", ["SAND", "WAVES", "SHELLS", "SUNSCREEN", "TOWEL", "SURF", "COOLER"]),
+    ("date-night", "Out and about", "DATENIGHT", ["DINNER", "MOVIE", "PICNIC", "BOWLING", "DANCING", "STARGAZE"], "easy"),
+    ("breakfast", "First things first", "BREAKFAST", ["PANCAKE", "WAFFLE", "BACON", "TOAST", "OMELET", "CEREAL", "EGGS"], "easy"),
+    ("pet-names", "Called by another name", "PETNAMES", ["HONEY", "DARLING", "SWEETIE", "SUGAR", "CUTIE", "PUMPKIN", "DEAR"], "easy"),
+    ("board-games", "Roll with it", "BOARDGAMES", ["CHESS", "CLUE", "RISK", "TROUBLE", "MONOPOLY", "CATAN", "SORRY"], "easy"),
+    ("baking", "Rising action", "BAKING", ["FLOUR", "SUGAR", "BUTTER", "WHISK", "MIXER", "DOUGH", "YEAST", "MUFFIN"], "easy"),
+    ("stargazing", "Look up", "STARGAZING", ["ORION", "COMET", "GALAXY", "NEBULA", "METEOR", "PLANET", "MOON"], "easy"),
+    ("beach-trip", "Salt in the air", "BEACHTRIP", ["SAND", "WAVES", "SHELLS", "SUNSCREEN", "TOWEL", "SURF", "COOLER"], "easy"),
+    ("utensils", "Drawer pulls", "UTENSILS", ["LADLE", "SPATULA", "TONGS", "PEELER", "GRATER", "ZESTER", "SIEVE"], "hard"),
+    ("in-no-time", "Be right back", "INNOTIME", ["JIFFY", "MOMENT", "INSTANT", "TRICE", "FLASH", "SECOND", "MINUTE"], "hard"),
+    ("key-holders", "Important things", "KEYHOLDERS", ["PIANO", "LOCK", "FLORIDA", "CIPHER", "ANSWER", "SONG", "LAPTOP"], "hard"),
+    ("go-fish", "Something's fishy", "GOFISH", ["SWORD", "JELLY", "ANGEL", "MONK", "LION", "SAIL", "GOLD", "STAR", "TRIGGER"], "hard"),
+    ("the-bard", "Exit, pursued by a bear", "THEBARD", ["HAMLET", "MACBETH", "OTHELLO", "TEMPEST", "LEAR", "CORIOLANUS"], "hard"),
+    ("coffee-bar", "Grounds for celebration", "COFFEEBAR", ["LATTE", "MOCHA", "CORTADO", "LUNGO", "AMERICANO", "AFFOGATO"], "hard"),
+    ("checkmate", "Your move", "CHECKMATE", ["GAMBIT", "PAWN", "KNIGHT", "BISHOP", "BLUNDER", "CASTLE", "KING"], "hard"),
+    ("all-aboard", "Get on it", "ALLABOARD", ["SKATE", "SURF", "DASH", "CHALK", "CLIP", "SPRING", "SCORE", "CHEESE"], "hard"),
+    ("its-all-greek", "Frat row", "ITSALLGREEK", ["ALPHA", "GAMMA", "DELTA", "SIGMA", "OMEGA", "EPSILON", "THETA"], "hard"),
+    ("al-dente", "Use your noodle", "ALDENTE", ["LINGUINE", "FUSILLI", "ORZO", "RIGATONI", "FARFALLE", "ROTINI"], "hard"),
 ]
 
 DIRS = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
@@ -167,7 +179,7 @@ def solve(spangram, words, rng):
 def main():
     rng = random.Random(int(sys.argv[1]) if len(sys.argv) > 1 else 3)
     out = []
-    for pid, clue, spangram, words in PUZZLES:
+    for pid, clue, spangram, words, level in PUZZLES:
         assert len(spangram) + sum(map(len, words)) == ROWS * COLS, pid
         for attempt in range(5000):
             placed = solve(spangram, words, rng)
@@ -182,6 +194,7 @@ def main():
         out.append({
             "id": pid,
             "clue": clue,
+            "level": level,
             "spangram": spangram,
             "grid": ["".join(row) for row in grid],
             "words": {w: [[r, c] for r, c in path] for w, path in placed.items()},
