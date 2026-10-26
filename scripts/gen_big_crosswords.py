@@ -10,6 +10,7 @@ Good fills are then clued by hand in src/data/crosswords.ts.
 """
 import argparse
 import json
+import math
 import random
 import re
 import sys
@@ -81,7 +82,7 @@ session tokens encrypt hashing parser lexer syntax compile compiled kernel threa
 }
 
 
-def build_wordlist(min_zipf, theme_names):
+def build_wordlist(min_zipf, theme_names, max_len=9):
     web2 = set()
     with open("/usr/share/dict/web2") as f:
         for line in f:
@@ -104,18 +105,24 @@ def build_wordlist(min_zipf, theme_names):
         return any(len(b) >= 3 and b in web2 for b in bases)
 
     score = {}
-    for w in top_n_list("en", 80000):
-        if not re.fullmatch("[a-z]{3,9}", w) or w in BLOCK or w in DULL:
+    for w in top_n_list("en", 250000):
+        if not re.fullmatch("[a-z]{3,%d}" % max_len, w) or w in BLOCK or w in DULL:
             continue
         if len(w) == 3 and w not in THREE:
             continue
         z = zipf_frequency(w, "en")
+        # rarer words must look English: not more common in a neighbouring language (haus, dich, ...)
+        if z < 3.2 and any(zipf_frequency(w, lang) > z for lang in ("de", "fr", "es", "it", "nl", "pt")):
+            continue
+        # short words have plenty of common options, so obscure ones (shee, alco, parr) aren't needed
+        if len(w) <= 4 and z < 2.8:
+            continue
         if z >= min_zipf and real(w):
             score[w] = z
     theme = set()
     for name in theme_names:
         for w in THEMES[name].split():
-            if 3 <= len(w) <= 9 and w not in BLOCK:
+            if 3 <= len(w) <= max_len and w not in BLOCK:
                 theme.add(w)
                 score[w] = max(score.get(w, 0), zipf_frequency(w, "en")) + 3  # strongly prefer theme words
     return score, theme
@@ -134,6 +141,67 @@ def make_pattern(n, rng, black_range):
             black.add((r, c))
             black.add((n - 1 - r, n - 1 - c))
         if valid_pattern(n, black):
+            return ["".join("#" if (r, c) in black else "." for c in range(n)) for r in range(n)]
+    return None
+
+
+def make_big_pattern(n, rng, max_run, max_black):
+    """Symmetric pattern for big grids by local search: split runs that are too long,
+    fix runs that are too short (1-2 squares), until every run is 3..max_run."""
+    def lines(black):
+        out = []
+        for r in range(n):
+            out.append([(r, c) for c in range(n)])
+        for c in range(n):
+            out.append([(r, c) for r in range(n)])
+        return out
+
+    all_lines = lines(None)
+    for _ in range(300):
+        black = set()
+
+        def add(cell):
+            black.add(cell)
+            black.add((n - 1 - cell[0], n - 1 - cell[1]))
+
+        def rm(cell):
+            black.discard(cell)
+            black.discard((n - 1 - cell[0], n - 1 - cell[1]))
+
+        for _ in range(6000):
+            bad = []
+            for line in all_lines:
+                run = []
+                for cell in line + [None]:
+                    if cell is not None and cell not in black:
+                        run.append(cell)
+                        continue
+                    if run and (len(run) < 3 or len(run) > max_run):
+                        bad.append((line, run))
+                    run = []
+            if not bad:
+                break
+            line, run = rng.choice(bad)
+            if len(run) > max_run:
+                add(run[rng.randint(3, len(run) - 4)])
+            elif rng.random() < 0.5:
+                for cell in run:
+                    add(cell)
+            else:
+                # lengthen the run by opening a black square at one of its ends
+                i0, i1 = line.index(run[0]), line.index(run[-1])
+                ends = [line[i] for i in (i0 - 1, i1 + 1) if 0 <= i < n and line[i] in black]
+                if ends:
+                    rm(rng.choice(ends))
+                else:
+                    for cell in run:
+                        add(cell)
+        else:
+            continue
+        rows = ["".join("#" if (r, c) in black else "." for c in range(n)) for r in range(n)]
+        cols = ["".join(rows[r][c] for r in range(n)) for c in range(n)]
+        walls = any("#####" in line for line in rows + cols)  # no long black bars
+        if not walls and len(black) <= max_black and valid_pattern(n, black):
             return ["".join("#" if (r, c) in black else "." for c in range(n)) for r in range(n)]
     return None
 
@@ -211,13 +279,42 @@ class Filler:
                     return 0
         return m
 
-    def fill(self, pattern, rng, budget_s=4.0, tries_per_slot=20, themed_slots=0):
+    def least_constraining(self, cands, slot, grid, crossing, slots, rest, themed):
+        """Order candidates by how many options they leave the crossing slots (dead ends dropped)."""
+        rest_set = set(rest)
+        open_cells = [cell for cell in slot if cell not in grid]
+        cross = {j for cell in open_cells for j in crossing[cell] if j in rest_set}
+        scored = []
+        for w in cands:
+            for cell, ch in zip(slot, w):
+                grid.setdefault(cell, ch)
+            total = 0.0
+            for j in cross:
+                cnt = self.mask(slots[j], grid, j in themed).bit_count()
+                if not cnt:
+                    total = None
+                    break
+                total += math.log(cnt)
+            for cell in open_cells:
+                del grid[cell]
+            if total is not None:
+                scored.append((total + 2 * self.score[w], w))
+        scored.sort(reverse=True)
+        return [w for _, w in scored]
+
+    def fill(self, pattern, rng, budget_s=4.0, tries_per_slot=20, themed_slots=0, lcv=0, start=None):
+        """Fill `pattern`. `start` may hold letters (non-'.' and non-'#') to keep, for repairs."""
         slots = slots_of(pattern)
         # the longest slots must hold theme words
         order = sorted(range(len(slots)), key=lambda i: (-len(slots[i]), rng.random()))
         themed = set(order[:themed_slots])
         grid = {}
-        used = set()
+        if start:
+            for r, row in enumerate(start):
+                for c, ch in enumerate(row):
+                    if ch not in "#.":
+                        grid[(r, c)] = ch.lower()
+        used = {"".join(grid[c] for c in s) for s in slots if all(c in grid for c in s)}
         deadline = time.time() + budget_s
         crossing = {}
         for i, s in enumerate(slots):
@@ -252,6 +349,8 @@ class Filler:
             cands = [w for w in words_from(best_mask, len(slot)) if w not in used]
             cands.sort(key=lambda w: -(self.score[w] + rng.uniform(0, 1.8)))
             rest = [i for i in open_slots if i != best]
+            if lcv:
+                cands = self.least_constraining(cands[:lcv], slot, grid, crossing, slots, rest, themed)
             for w in cands[:tries_per_slot]:
                 placed = [cell for cell in slot if cell not in grid]
                 for cell, ch in zip(slot, w):
@@ -266,7 +365,7 @@ class Filler:
                     del grid[cell]
             return False
 
-        if not solve(list(range(len(slots)))):
+        if not solve([i for i, s in enumerate(slots) if not all(c in grid for c in s)]):
             return None
         n = len(pattern)
         rows = ["".join("#" if pattern[r][c] == "#" else grid[(r, c)] for c in range(n)) for r in range(n)]
@@ -289,10 +388,17 @@ def main():
     ap.add_argument("--blacks", default=None, help="min,max black squares")
     ap.add_argument("--patterns", default=None, help="JSON file of grid shapes to reuse instead of random ones")
     ap.add_argument("--exclude", default="", help="comma-separated words to leave out (e.g. already used)")
+    ap.add_argument("--max-len", type=int, default=9, help="longest answer allowed")
+    ap.add_argument("--max-black", type=int, default=0, help="big grids: most black squares allowed")
+    ap.add_argument("--budget", type=float, default=6.0, help="seconds per fill attempt")
+    ap.add_argument("--lcv", type=int, default=0, help="big grids: rank this many candidates by crossing options")
+    ap.add_argument("--tries", type=int, default=20, help="candidates tried per slot")
+    ap.add_argument("--repair", default=None, help="JSON fill whose --bad answers should be replaced")
+    ap.add_argument("--bad", default="", help="comma-separated answers to replace when repairing")
     args = ap.parse_args()
     rng = random.Random(args.seed)
     themes = [t for t in args.theme.split(",") if t]
-    score, theme = build_wordlist(args.min_zipf, themes)
+    score, theme = build_wordlist(args.min_zipf, themes, args.max_len)
     for w in filter(None, args.exclude.lower().split(",")):
         score.pop(w, None)
         theme.discard(w)
@@ -300,15 +406,42 @@ def main():
     filler = Filler(score, theme)
     n = args.size
     black_range = tuple(map(int, args.blacks.split(","))) if args.blacks else ((8, 12) if n == 7 else (14, 20))
+    if args.repair:
+        # blank the bad answers in an existing fill, then refill just those squares
+        grid = json.load(open(args.repair))["grid"]
+        bad = set(args.bad.upper().split(","))
+        rows = [list(r) for r in grid]
+        all_slots = slots_of(grid)
+        bad_cells = {cell for sl in all_slots if "".join(grid[r][c] for r, c in sl) in bad for cell in sl}
+        # free the bad answers and every answer crossing them
+        for sl in all_slots:
+            if bad_cells & set(sl):
+                for r, c in sl:
+                    rows[r][c] = "."
+        start = ["".join(r) for r in rows]
+        pattern = ["".join("#" if ch == "#" else "." for ch in r) for r in grid]
+        for attempt in range(40):
+            res = filler.fill(pattern, rng, budget_s=args.budget, lcv=args.lcv, tries_per_slot=args.tries, start=start)
+            if res:
+                rows, words = res
+                print(json.dumps({"grid": [r.upper() for r in rows], "words": words, "theme": [w for w in words if w in theme]}))
+                return
+        raise SystemExit("repair failed")
+
     fixed = json.load(open(args.patterns)) if args.patterns else None
     found = 0
     attempts = 0
     while found < args.count and attempts < args.count * 200:
         attempts += 1
-        pattern = rng.choice(fixed) if fixed else make_pattern(n, rng, black_range)
+        if fixed:
+            pattern = rng.choice(fixed)
+        elif n > 9:
+            pattern = make_big_pattern(n, rng, args.max_len, args.max_black or n * n // 5)
+        else:
+            pattern = make_pattern(n, rng, black_range)
         if not pattern:
             continue
-        res = filler.fill(pattern, rng, budget_s=6.0, themed_slots=args.themed_slots)
+        res = filler.fill(pattern, rng, budget_s=args.budget, themed_slots=args.themed_slots, lcv=args.lcv, tries_per_slot=args.tries)
         if not res:
             continue
         rows, words = res

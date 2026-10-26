@@ -41,6 +41,22 @@ function CrosswordGame({ puzzle }: { puzzle: CrosswordData }) {
   }, [n, open])
   const [cur, setCur] = useState<Cursor>({ r: 0, c: firstOpen, dir: 'across' })
 
+  // big grids keep finger-sized squares and scroll; keep the cursor in view
+  const big = n > 11
+  const scrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!big) return
+    const box = scrollRef.current
+    const cell = box?.querySelector<HTMLElement>('.xw-cell.cursor')
+    if (!box || !cell) return
+    const pad = cell.offsetWidth * 1.5
+    const { offsetLeft: x, offsetTop: y, offsetWidth: w, offsetHeight: h } = cell
+    if (x - pad < box.scrollLeft) box.scrollLeft = x - pad
+    else if (x + w + pad > box.scrollLeft + box.clientWidth) box.scrollLeft = x + w + pad - box.clientWidth
+    if (y - pad < box.scrollTop) box.scrollTop = y - pad
+    else if (y + h + pad > box.scrollTop + box.clientHeight) box.scrollTop = y + h + pad - box.clientHeight
+  }, [big, cur])
+
   const slotAt = useCallback(
     (r: number, c: number, dir: Dir) => slots.find((s) => s.dir === dir && s.cells.some(([y, x]) => y === r && x === c)),
     [slots],
@@ -231,6 +247,7 @@ function CrosswordGame({ puzzle }: { puzzle: CrosswordData }) {
             onNext={() => jumpSlot(1)}
             onToggle={() => setCur({ ...cur, dir: cur.dir === 'across' ? 'down' : 'across' })}
           />
+          <div className={`xw-scroll ${big ? 'big' : ''}`} ref={scrollRef}>
           <div className="xw-grid" style={{ gridTemplateColumns: `repeat(${n}, 1fr)`, '--n': n } as React.CSSProperties}>
             {puzzle.grid.flatMap((row, r) =>
               [...row].map((ch, c) => {
@@ -273,6 +290,7 @@ function CrosswordGame({ puzzle }: { puzzle: CrosswordData }) {
                 )
               }),
             )}
+          </div>
           </div>
           <Keyboard className="touch-only" onKey={onKey} enterLabel="Next" />
         </div>

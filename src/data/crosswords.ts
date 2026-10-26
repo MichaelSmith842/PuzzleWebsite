@@ -4,9 +4,9 @@
 import MORE_JSON from './crosswords-more.json'
 
 // checked by scripts/check_crosswords.py
-const MORE = MORE_JSON as unknown as Record<'medium' | 'hard' | 'ours' | 'oursHard', CrosswordData[]>
+const MORE = MORE_JSON as unknown as Record<'medium' | 'hard' | 'ours' | 'oursHard' | 'oursHuge', CrosswordData[]>
 
-export type Level = 'mini' | 'medium' | 'hard' | 'ours' | 'ours-hard'
+export type Level = 'mini' | 'medium' | 'hard' | 'ours' | 'ours-hard' | 'ours-huge'
 
 export type CrosswordData = {
   id: string
@@ -195,9 +195,10 @@ export const CROSSWORDS: CrosswordData[] = [
   ...MORE.hard.map((p) => ({ ...p, level: 'hard' as const })),
   ...MORE.ours.map((p) => ({ ...p, level: 'ours' as const })),
   ...MORE.oursHard.map((p) => ({ ...p, level: 'ours-hard' as const })),
+  ...MORE.oursHuge.map((p) => ({ ...p, level: 'ours-huge' as const })),
 ]
 
-const LEVEL_NAMES: Record<Level, string> = { mini: 'Mini', medium: 'Medium', hard: 'Hard', ours: 'Ours', 'ours-hard': 'Ours, hard' }
+const LEVEL_NAMES: Record<Level, string> = { mini: 'Mini', medium: 'Medium', hard: 'Hard', ours: 'Ours', 'ours-hard': 'Ours, hard', 'ours-huge': 'Ours, huge' }
 
 /** Numbered name like "Medium #3"; titles stay in the data but could give answers away. */
 export function crosswordLabel(p: CrosswordData) {

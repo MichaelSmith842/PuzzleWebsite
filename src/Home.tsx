@@ -95,6 +95,7 @@ export default function Home({ onEditMe }: { onEditMe: (u: User) => void }) {
 const CROSSWORD_SHELVES: { level: Level; title: string; blurb: string }[] = [
   { level: 'ours', title: 'Just for us', blurb: 'Law, books and code: a little of each of our worlds.' },
   { level: 'ours-hard', title: 'Just for us, harder', blurb: '9×9s packed with law, literature and code. Tougher clues.' },
+  { level: 'ours-huge', title: 'Just for us, super hard', blurb: 'Five 15×15s and one Sunday-size 21×21. Settle in, these take a while.' },
   { level: 'mini', title: 'Mini crosswords', blurb: 'Quick 5×5s. Your letters show in your ink color.' },
   { level: 'medium', title: 'Medium crosswords', blurb: '7×7 grids with trickier clues.' },
   { level: 'hard', title: 'Hard crosswords', blurb: '9×9 grids with misdirection. Bring coffee.' },

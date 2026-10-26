@@ -184,6 +184,10 @@ input:focus { outline: 2px solid var(--cursor); outline-offset: 1px; }
 }
 .clue-text { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; line-height: 1.35; }
 .icon { background: none; border: 0; font-size: 1.6rem; line-height: 1; padding: 0 8px; cursor: pointer; color: var(--muted); }
+.xw-scroll { position: relative; }
+/* big grids: squares stay finger-sized and the grid scrolls */
+.xw-scroll.big { overflow: auto; max-height: 75vh; border-radius: 6px; overscroll-behavior: contain; }
+.xw-scroll.big .xw-grid { width: calc(var(--n) * 34px); }
 .xw-grid {
   container-type: inline-size;
   display: grid; gap: 0; aspect-ratio: 1; background: var(--black); border: 2px solid var(--black); border-radius: 6px; overflow: hidden;
@@ -327,7 +331,9 @@ input:focus { outline: 2px solid var(--cursor); outline-offset: 1px; }
   .invite-link .btn { flex: 1; justify-content: center; }
 
   .xw-board { gap: 8px; }
-  .xw-grid { order: 1; width: min(100%, calc(100dvh - 330px)); min-width: 220px; justify-self: center; }
+  .xw-scroll { order: 1; justify-self: center; width: 100%; }
+  .xw-scroll:not(.big) .xw-grid { width: min(100%, calc(100dvh - 330px)); min-width: 220px; margin: 0 auto; }
+  .xw-scroll.big { max-height: calc(100dvh - 330px); min-height: 220px; }
   .cluebar { order: 2; min-height: 48px; padding: 6px 4px; font-size: 0.95rem; }
   .xw-board .keyboard { order: 3; }
   .xw-clues { grid-template-columns: 1fr; }
@@ -353,4 +359,7 @@ input:focus { outline: 2px solid var(--cursor); outline-offset: 1px; }
 @media (max-width: 600px) and (max-height: 700px) {
   .key { height: 40px; }
   .brand { font-size: 1rem; }
+}
+@media (min-width: 761px) {
+  .xw-layout:has(.xw-scroll.big) { grid-template-columns: minmax(0, 720px) minmax(260px, 1fr); }
 }
