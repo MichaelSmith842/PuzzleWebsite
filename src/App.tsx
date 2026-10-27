@@ -4,6 +4,7 @@ import { RoomContext, initials, useHashRoute, useRoom } from './room'
 import Home, { routeLabel } from './Home'
 import Crossword from './games/Crossword'
 import Wordle from './games/Wordle'
+import Duel from './games/Duel'
 import Strands from './games/Strands'
 
 export const COLORS = ['#e8664f', '#3d7be0', '#2f9e6b', '#8a5cd6', '#d49a1f', '#d6529a']
@@ -63,6 +64,7 @@ function Shell({ onEditMe }: { onEditMe: (u: User) => void }) {
   let page
   if (game === 'crossword' && id) page = <Crossword id={id} key={route} />
   else if (game === 'wordle' && id) page = <Wordle id={id} key={route} />
+  else if (game === 'duel' && id) page = <Duel id={id} key={route} />
   else if (game === 'strands' && id) page = <Strands id={id} key={route} />
   else page = <Home onEditMe={onEditMe} />
 

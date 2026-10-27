@@ -3,6 +3,7 @@ import { CROSSWORDS, crosswordLabel, crosswordSlug, findCrossword, type Crosswor
 import { crosswordProgress } from './games/Crossword'
 import { answerFor, todayId, wordleStatus, wordleTitle } from './games/Wordle'
 import { STRANDS, findStrands, strandsLabel, strandsProgress, strandsSlug, type StrandsData } from './games/Strands'
+import { duelResult, duelRounds, duelTitle, duelWinner, players } from './games/Duel'
 import { useRoom } from './room'
 import type { User } from './sync'
 import { Avatar, ProfileForm } from './App'
@@ -13,6 +14,7 @@ export function routeLabel(route: string) {
   const st = findStrands(id ?? '')
   if (game === 'crossword') return xw ? `crossword ${crosswordLabel(xw)}` : 'a crossword'
   if (game === 'wordle') return `Wordle (${wordleTitle(id ?? '')})`
+  if (game === 'duel') return `Wordle ${duelTitle(id ?? '')}`
   if (game === 'strands') return st ? strandsLabel(st) : 'Strands'
   return 'the home page'
 }
@@ -42,6 +44,8 @@ export default function Home({ onEditMe }: { onEditMe: (u: User) => void }) {
   return (
     <div className="home">
       <WelcomeCard onEditMe={onEditMe} />
+
+      <DuelShelf />
 
       {CROSSWORD_SHELVES.map((shelf) => (
         <section className="shelf" key={shelf.level}>
@@ -130,6 +134,59 @@ function CrosswordCard({ puzzle: p }: { puzzle: CrosswordData }) {
       <span className="pcard-sub">{pr.done ? 'Solved ✓' : pr.filled ? `${pr.filled}/${pr.total} squares` : `${n}×${n}`}</span>
       <PartnerDots route={`crossword/${crosswordSlug(p)}`} />
     </a>
+  )
+}
+
+function DuelShelf() {
+  const room = useRoom()
+  const me = room.me
+  const rival = players(room).find((p) => p.id !== me.id)
+  const rounds = duelRounds(room)
+  const tally = { me: 0, them: 0, ties: 0 }
+  if (rival) {
+    for (const id of rounds) {
+      const w = duelWinner(room, id, me.id, rival.id)
+      if (w === 'tie') tally.ties++
+      else if (w === me.id) tally.me++
+      else if (w) tally.them++
+    }
+  }
+  const status = (id: string, userId: string) => {
+    const r = duelResult(room, id, userId)
+    return r.done ? (r.solved ? `${r.guesses}/6` : 'X/6') : r.guesses ? '…' : '–'
+  }
+  return (
+    <section className="shelf">
+      <div className="shelf-head">
+        <h2>Wordle Duel</h2>
+        <p>Same word, separate boards. Fewest guesses wins.</p>
+      </div>
+      {rival && (
+        <div className="scoreboard">
+          <span style={{ color: me.color }}><b>{tally.me}</b> {me.name}</span>
+          <span className="muted">{tally.ties} tie{tally.ties === 1 ? '' : 's'}</span>
+          <span style={{ color: rival.color }}><b>{tally.them}</b> {rival.name}</span>
+        </div>
+      )}
+      <div className="cards">
+        {rounds.slice(0, 5).map((id) => (
+          <a key={id} href={`#/duel/${id}`} className="pcard">
+            <span className="wd-thumb duel-thumb"><i /><i /><i /><i /><i /></span>
+            <span className="pcard-title">{duelTitle(id)}</span>
+            <span className="pcard-sub">
+              You {status(id, me.id)}
+              {rival ? ` · ${rival.name} ${status(id, rival.id)}` : ''}
+            </span>
+            <PartnerDots route={`duel/${id}`} />
+          </a>
+        ))}
+        <a href={`#/duel/r-${Date.now().toString(36)}`} className="pcard new">
+          <span className="plus">+</span>
+          <span className="pcard-title">New duel</span>
+          <span className="pcard-sub">Extra round, random word</span>
+        </a>
+      </div>
+    </section>
   )
 }
 

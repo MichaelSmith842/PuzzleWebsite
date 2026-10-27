@@ -270,6 +270,27 @@ input:focus { outline: 2px solid var(--cursor); outline-offset: 1px; }
 }
 .hint-line { text-align: center; color: var(--muted); min-height: 2.5em; margin: 0 0 12px; font-size: 0.9rem; }
 
+/* ---------- wordle duel ---------- */
+.duel-rival { border: 1px solid var(--line); border-left: 4px solid; border-radius: 12px; padding: 8px 12px; margin-bottom: 12px; background: var(--paper); }
+.duel-rival-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.duel-rival p { margin: 4px 0 0; }
+.duel-mini { display: grid; gap: 3px; margin-top: 6px; justify-content: start; }
+.duel-mini-row { display: flex; gap: 3px; }
+.duel-mini i {
+  width: 22px; height: 22px; border-radius: 3px; background: var(--absent); color: #fff; font: 700 0.7rem/22px var(--sans);
+  text-align: center; font-style: normal;
+}
+.duel-mini i.correct { background: var(--good); }
+.duel-mini i.present { background: var(--present); }
+.duel-verdict { font-weight: 700; }
+.duel .wd-row { justify-content: center; }
+.scoreboard {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px; background: var(--paper);
+  border: 1px solid var(--line); border-radius: 12px; padding: 10px 16px; margin-bottom: 12px; font-size: 1rem;
+}
+.scoreboard b { font: 700 1.5rem var(--serif); margin-right: 4px; }
+.duel-thumb i:nth-child(1), .duel-thumb i:nth-child(4) { background: var(--good); }
+
 /* ---------- strands ---------- */
 .strands { max-width: 440px; margin: 0 auto; }
 .st-theme { background: #cfe8f3; color: #1d3a47; border-radius: 12px; text-align: center; padding: 10px; display: grid; }
